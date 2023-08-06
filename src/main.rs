@@ -1,3 +1,5 @@
+use std::{iter::Peekable, str::Chars};
+
 fn main() {
     println!("Hello, world!");
 }
@@ -25,56 +27,58 @@ impl LexerError {
     }
 }
 
-struct Lexer {
-    input: Vec<char>,
-    pos: usize,
+struct Lexer<'a> {
+    input: Peekable<Chars<'a>>,
 }
 
-impl Lexer {
-    fn new(s: String) -> Self {
+impl<'a> Lexer<'a> {
+    fn new(s: &'a str) -> Self {
         Self {
-            input: s.chars().collect(),
-            pos: 0,
+            input: s.chars().peekable(),
         }
     }
 
-    fn tokenize(&mut self) -> Vec<Token> {
+    fn tokenize(&mut self) -> Result<Vec<Token>, LexerError> {
         let mut tokens: Vec<Token> = Vec::new();
 
-        loop {
-            let token = self.next_token().unwrap();
+        while let Some(token) = self.next_token().unwrap() {
             match token {
-                Some(t) => tokens.push(t),
-                None => {}
+                _ => tokens.push(token),
             }
         }
-        tokens
+
+        // loop {
+        //     let token = self.next_token().unwrap();
+        //     match token {
+        //         Some(t) => tokens.push(t),
+        //         None => {}
+        //     }
+        // }
+        Ok(tokens)
     }
 
     fn next_token(&mut self) -> Result<Option<Token>, LexerError> {
-        if self.input.len() < self.pos {
-            return Ok(None);
-        }
-        match self.input[self.pos] {
-            '"' => {
-                self.pos += 1;
-                self.perse_string()
-            }
-            c => Err(LexerError::new(&format!("error: unexpected char {}", c))),
+        match self.input.peek() {
+            Some(c) => match c {
+                '"' => {
+                    self.input.next();
+                    self.perse_string_token()
+                }
+                _ => Err(LexerError::new(&format!("error: unexpected char {}", c))),
+            },
+            None => Ok(None),
         }
     }
 
-    fn perse_string(&mut self) -> Result<Option<Token>, LexerError> {
+    fn perse_string_token(&mut self) -> Result<Option<Token>, LexerError> {
         let mut s = String::new();
-        while let c = self.input[self.pos] {
+        while let Some(c) = self.input.next() {
             match c {
-                '"' => {
-                    self.pos += 1;
+                '\"' => {
                     break;
                 }
                 _ => {
-                    self.pos += 1;
-                    s.push(c);
+                    s.push(c.clone());
                 }
             }
         }
@@ -89,7 +93,7 @@ mod tests {
     #[test]
     fn test() {
         let s = r#""hello""#;
-        let tokens = Lexer::new(s.to_string()).tokenize();
+        let tokens = Lexer::new(s).tokenize().unwrap();
         print!("{:?}", tokens);
         assert_eq!(tokens[0], Token::String("hello".to_string()));
     }
